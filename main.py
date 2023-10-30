@@ -333,13 +333,20 @@ def delIndividuo(i:Individuo):
     
 def exportarDados():
     '''
-    Exporta os dados do gráfico de concentração.
+    Exporta os dados do gráfico de concentração e de infecção.
     '''
-    global listaConc
+    global listaConc, listaInf
     
-    dados = [i for i in zip(listaConc[0], listaConc[1], listaConc[2],
-                            listaConc[3], listaConc[4])]
-    savetxt(f'dados/dadosSimulacao.csv', dados, delimiter=', ',
+    # Gráfico de concentração:
+    dadosConc = [valor for valor in zip(listaConc[0], listaConc[1], listaConc[2],
+                                        listaConc[3], listaConc[4])]
+    savetxt(f'dados/dadosConcentracao.csv', dadosConc, delimiter=', ',
+            fmt='% s')
+    
+    # Gráfico de infecção:
+    dadosConc = [valor for valor in zip(listaInf[0], listaInf[1], listaInf[2],
+                                        listaInf[3])]
+    savetxt(f'dados/dadosInfeccao.csv', dadosConc, delimiter=', ',
             fmt='% s')
     
     
@@ -538,12 +545,7 @@ animacao.append_to_caption('\n\n\n\n')
 simulacao()
 
 
-
-
-
-
 # --------------------------------- A Fazer: --------------------------------- #
-# Exportar dados de infecção;
 # Implementar infecção durante predação;
 # Implementar morte por infecção;
 # Implementar natalidade e mortalidade (?)
