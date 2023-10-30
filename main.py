@@ -78,6 +78,7 @@ def infeccao(infect:Individuo, sus:Individuo):
  :( ----------') 
     sus.saudavel = False
     sus.color = propriedades[sus.especie]['corInf']
+    propriedades[sus.especie]['numInfectados'] += 1
     
 
 def predacao(pred:Individuo, pres:Individuo):
@@ -228,7 +229,8 @@ def criaIndividuos(especie:str):
         pos = vector(pos[0], pos[1], 0)
         vel = [randint(0, velLimite) for _ in range(2)]
         vel = vector(vel[0], vel[1], 0)
-        saudavel = randint(0, 100) < propriedades[especie]['taxaInf']
+        saudavel = randint(0, 100) > propriedades[especie]['taxaInf']
+        if (not saudavel): propriedades[especie]['numInfectados'] += 1
         p = Individuo(pos, vel, raio, massa, especie, saudavel, cor)
         indVivos.append(p)
         
@@ -237,11 +239,11 @@ def criaGraficos():
     '''
     Cria gráficos que acompanham a simulação.
     '''
-    global grafComp, grafAlt, listaConc
+    global grafComp, grafAlt, listaConc, listaInf
     
     # Gráfico de concentração:
     valMaximo = 65
-    grafico2 = graph(title='Concentração', width=grafComp,
+    grafico1 = graph(title='Concentração', width=grafComp,
                     height=grafAlt, align='left', ymax=valMaximo,
                     xtitle='Tempo', ytitle='Número de indivíduos')
     concRato = gcurve(data=list(zip(listaConc[0], listaConc[1])),
@@ -252,22 +254,64 @@ def criaGraficos():
                     color=vector(1,.5,0), label='Gatos')
     concLeao = gcurve(data=list(zip(listaConc[0], listaConc[4])),
                     color=vector(1,1,0), label='Leao')
-    graficos.extend([concRato, concCoelho, concGato, concLeao])
+    graficosConc.extend([concRato, concCoelho, concGato, concLeao])
+    
+    # Gráfico de infecção:
+    valMaximo = 65
+    grafico2 = graph(title='Infecção', width=grafComp,
+                    height=grafAlt, align='left', ymax=valMaximo,
+                    xtitle='Tempo', ytitle='Número de indivíduos infectados')
+    infRato = gcurve(data=list(zip(listaConc[0], listaConc[1])),
+                    color=vector(.5,.5,.5), label='Ratos')
+    infGato = gcurve(data=list(zip(listaConc[0], listaConc[2])),
+                    color=vector(1,.5,0), label='Gatos')
+    infLeao = gcurve(data=list(zip(listaConc[0], listaConc[3])),
+                    color=vector(1,1,0), label='Leao')
+    graficosInf.extend([infRato, infGato, infLeao])
 
 
 def atualizaGraficos():
     '''
     Atualiza os gráficos que acompanham a simulação.
     '''
-    global graficos, listaConc
+    global graficosConc, listaConc
     
     # Gráfico de concentração:
-    concRato, concCoelho, concGato, concLeao = graficos[0], graficos[1], \
-    graficos[2], graficos[3]
+    concRato, concCoelho, concGato, concLeao = graficosConc[0], graficosConc[1],\
+    graficosConc[2], graficosConc[3]
     concRato.data = list(zip(listaConc[0], listaConc[1]))
     concCoelho.data = list(zip(listaConc[0], listaConc[2]))
     concGato.data = list(zip(listaConc[0], listaConc[3]))
     concLeao.data = list(zip(listaConc[0], listaConc[4]))
+    
+    # Gráfico de infecção:
+    infRato, infGato, infLeao = graficosInf[0], graficosInf[1], graficosInf[2]
+    infRato.data = list(zip(listaInf[0], listaInf[1]))
+    infGato.data = list(zip(listaInf[0], listaInf[2]))
+    infLeao.data = list(zip(listaInf[0], listaInf[3]))
+    
+    
+def atualizaListas(t:int):
+    '''
+    Atualiza listas para a plotagem dos gráficos.
+
+    Args:
+        t (int): tempo (frame) atual da simulação
+    '''
+    global listaConc, listaInf
+    
+    # Gráfico de concentração:
+    listaConc[0].append(t)
+    listaConc[1].append(nRato)
+    listaConc[2].append(nCoelho)
+    listaConc[3].append(nGato)
+    listaConc[4].append(nLeao)
+    
+    # Gráfico de infecção:
+    listaInf[0].append(t)
+    listaInf[1].append(nRInf)
+    listaInf[2].append(nGInf)
+    listaInf[3].append(nLInf)
     
     
 # --------------------------------- Simulação -------------------------------- #
@@ -315,13 +359,14 @@ def step():
         * Deleta todos os indivíduos mortos;
         * Reseta a lista de indivíduos mortos;
         * Atualiza número de indivíduos de cada população;
+        * Atualiza número de indivíduos infectados de cada população;
         * Atualiza gráficos;
         * Atualiza posições dos indivíduos;
         * Atualiza vizinhos;
         * Check de colisão entre dois indivíduos;
         * Check de colisão indivíduo-parede
     '''
-    global indMortos, indVivos, nRato, nCoelho, nGato, nLeao
+    global indMortos, indVivos, nRato, nCoelho, nGato, nLeao, nRInf, nGInf, nLInf
     
     # * Deleta todos os indivíduos mortos:
     [delIndividuo(i) for i in indMortos]
@@ -332,6 +377,10 @@ def step():
     nCoelho = propriedades['Coelho']['numIndividuos']
     nGato = propriedades['Gato']['numIndividuos']
     nLeao = propriedades['Leao']['numIndividuos']
+    # * Atualiza número de indivíduos infectados de cada população:
+    nRInf = propriedades['Rato']['numInfectados']
+    nGInf = propriedades['Gato']['numInfectados']
+    nLInf = propriedades['Leao']['numInfectados']
     # * Atualiza gráficos:
     atualizaGraficos()
     # * Atualiza posições dos indivíduos;
@@ -363,11 +412,7 @@ def simulacao():
     while (not parar):
         step()
         t += 1
-        listaConc[0].append(t)
-        listaConc[1].append(nRato)
-        listaConc[2].append(nCoelho)
-        listaConc[3].append(nGato)
-        listaConc[4].append(nLeao)
+        atualizaListas(t)
     print('\n\n---------- Fim da simulação! ----------\n')
     stop_server()
 
@@ -391,7 +436,8 @@ propriedades = {
         'corInf':vector(0,1,0),
         'taxaInf':15,
         'taxaPred':60,
-        'numIndividuos':50
+        'numIndividuos':50,
+        'numInfectados':0
     },
 
     'Coelho' : {
@@ -412,7 +458,8 @@ propriedades = {
         'corInf':vector(.2,1,.2),
         'taxaInf':10,
         'taxaPred':40,
-        'numIndividuos':30
+        'numIndividuos':30,
+        'numInfectados':0
     },
 
     'Leao' : {
@@ -423,7 +470,8 @@ propriedades = {
         'corInf':vector(.4,1,.4),
         'taxaInf':5,
         'taxaPred':0,
-        'numIndividuos':20
+        'numIndividuos':20,
+        'numInfectados':0
     }
 }
 
@@ -435,19 +483,30 @@ nCoelho = propriedades['Coelho']['numIndividuos'] # Número de coelhos
 nGato = propriedades['Gato']['numIndividuos'] # Número de gatos
 nLeao = propriedades['Leao']['numIndividuos'] # Número de leões
 
+nRInf = propriedades['Rato']['numInfectados'] # Número de ratos infectados
+nGInf = propriedades['Gato']['numInfectados'] # Número de gatos infectados
+nLInf = propriedades['Leao']['numInfectados'] # Número de leões infectados
+
 indVivos = [] # Lista de indivíduos vivos
 indMortos = [] # Lista de indivíduos mortos
 
 ladoCaixa = 20 # Lado da caixa imaginária contendo a simulação
 
 # Gráfico de concentração:
-graficos = []
+graficosConc = []
 listaTempo = [0]
 listaRato = [nRato]
 listaCoelho = [nCoelho]
 listaGato = [nGato]
 listaLeao = [nLeao]
 listaConc = [listaTempo, listaRato, listaCoelho, listaGato, listaLeao]
+
+# Gráfico de infecção:
+graficosInf = []
+listaRInf = [nRInf]
+listaGInf = [nGInf]
+listaLInf = [nLInf]
+listaInf = [listaTempo, listaRInf, listaGInf, listaLInf]
 
 
 # ---------------------------------------------------------------------------- #
@@ -484,6 +543,7 @@ simulacao()
 
 
 # --------------------------------- A Fazer: --------------------------------- #
-# Plotar Gráfico 2 - indivíduos infectados
-# Implementar morte por infecção
+# Exportar dados de infecção;
+# Implementar infecção durante predação;
+# Implementar morte por infecção;
 # Implementar natalidade e mortalidade (?)
