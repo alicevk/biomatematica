@@ -47,15 +47,32 @@ def dist(r1:vector, r2:vector):
     return mag(r1-r2)
 
 
-def neutro(i1:Individuo, i2:Individuo):
+def colInelastica(i1:Individuo, i2:Individuo):
     '''
-    Calcula e atualiza os vetores velocidade resultantes de cada indivíduo após
-    sua interação, considerando uma interação neutra.
+    Calcula e atualiza um vetor velocidade resultante em uma colisão inelástica.
 
     Args:
-        i1 (Individuo): representa um dos indivíduos na interação
+        i1 (Individuo): representa um dos indivíduos na colisão
         i2 (Individuo): representa o outro indivíduo
-'''
+    '''
+    v1, m1, x1 = i1.vel, i1.massa, i1.pos
+    v2, m2, x2 = i2.vel, i2.massa, i2.pos
+    m_ = (m1+m2)/2
+    v_ = (m1*v1+m2*v2)/m_
+    x_ = (x1+x2)/2
+    
+    return x_, v_
+
+
+def colElastica(i1:Individuo, i2:Individuo):
+    '''
+    Calcula e atualiza os vetores velocidade resultantes de cada indivíduo em
+    uma colisão elástica.
+
+    Args:
+        i1 (Individuo): representa um dos indivíduos na colisão
+        i2 (Individuo): representa o outro indivíduo
+    '''
     v1, m1, x1 = i1.vel, i1.massa, i1.pos
     v2, m2, x2 = i2.vel, i2.massa, i2.pos
     v1_ = v1 - ((2*m2)/(m1+m2))*(dot(v1-v2, x1-x2)/(mag2(x1-x2)))*(x1-x2)
@@ -65,17 +82,18 @@ def neutro(i1:Individuo, i2:Individuo):
 
 def infeccao(infect:Individuo, sus:Individuo):
     '''
-    Infecção de um indivíduo suscetível por um infectado.
-
+    Calcula e atualiza os vetores velocidade resultantes de cada indivíduo após
+    sua interação, considerando uma infecção.
+    
     Args:
         inf (Individuo): representa uma indivíduo infectado
         sus (Individuo): representa um indivíduo suscetível
     '''
     global propriedades
     
-    neutro(infect, sus)
-    print(f'\n---------- O {sus.especie} foi infectado pelo {infect.especie}!\
- :( ----------')
+    colElastica(infect, sus)
+    print(f'\n--------- O {sus.especie} foi infectado pelo {infect.especie}! \
+:(')
     sus.saudavel = False
     sus.color = propriedades[sus.especie]['corInf']
     propriedades[sus.especie]['numInfectados'] += 1
@@ -92,20 +110,29 @@ def predacao(pred:Individuo, pres:Individuo):
     '''
     global indMortos
     
-    v1, m1, x1 = pred.vel, pred.massa, pred.pos
-    v2, m2, x2 = pres.vel, pres.massa, pres.pos
-    m_ = (m1+m2)/2
-    v_ = (m1*v1+m2*v2)/m_
-    x_ = (x1+x2)/2
-    print(f'\n---------- O {pres.especie} foi comido pelo {pred.especie}! :(\
- ----------')
-    pred.vel, pred.pos = v_, x_
+    print(f'\n--------- O {pres.especie} foi comido pelo {pred.especie}! :(')
+    pred.pos, pred.vel = colInelastica(pred, pres)
     if (pres not in indMortos):indMortos.append(pres)
-    # checkInf depois da predação:
-    saudPred, saudPres = pred.saudavel, pres.saudavel
-    condSus = ((saudPred==True) and (saudPres==False))
-    condInf = checkInf(pred, pres, completa=False)
+    # Infecção depois da predação:
+    condSus, condInf = checkInf(pred, pres, completa=False)
     if (condSus and condInf): infeccao(pres, pred)
+
+
+def reproducao(i1:Individuo,i2:Individuo):
+    '''
+    Calcula e atualiza os vetores velocidade resultantes dos indivíduos após a
+    interação, considerando a reprodução dos indivíduos.
+
+    Args:
+        i1 (Individuo): representa um dos indivíduos na interação
+        i2 (Individuo): representa o outro indivíduo
+    '''
+    
+    colElastica(i1, i2)
+    esp1, esp2 = i1.especie, i2.especie
+    print(f'\n--------- O {esp1} se reproduziu com o {esp2}! :)')
+    pos, vel = colInelastica(i1, i2)
+    criaIndividuo(pos, vel, esp1)
 
 
 def checkInf(i1:Individuo, i2:Individuo, completa=True):
@@ -120,6 +147,7 @@ def checkInf(i1:Individuo, i2:Individuo, completa=True):
     '''
     global propriedades
 
+    # Completa
     esp1, esp2 = i1.especie, i2.especie
     saud1, saud2 = i1.saudavel, i2.saudavel
     infect, sus = None, None
@@ -128,9 +156,11 @@ def checkInf(i1:Individuo, i2:Individuo, completa=True):
     condInf = randint(0, 100) < propriedades[esp1]['taxaInf']
     if ((not saud1) and (saud2)): infect, sus = i1, i2
     elif ((saud1) and (not saud2)): infect, sus = i2, i1
+    # Incompleta:
+    condSus2 = ((saud1==True) and (saud2==False))
     
     if completa: return condEspInf, condSus, condInf, infect, sus
-    else: return condInf
+    else: return condInf, condSus2
 
 
 def checkPred(i1:Individuo, i2:Individuo):
@@ -146,14 +176,31 @@ def checkPred(i1:Individuo, i2:Individuo):
     condPred, pred, pres = None, None, None
     esp1, esp2 = i1.especie, i2.especie
     esps = [esp1, esp2]
-    combos = [('Gato', 'Rato'), ('Gato', 'Coelho'), ('Gaucho', 'Gato')]
+    combos = [('Raposa', 'Rato'), ('Raposa', 'Coelho'), ('Gaucho', 'Raposa')]
     condEspPred = any(all(bicho in esps for bicho in combo)for combo in combos)
-    if condEspPred:
-        for pred_, pres_ in combos:
-            if ((esp1==pred_) and (esp2==pres_)): pred, pres = i1, i2
-            elif ((esp2==pred_) and (esp1==pres_)): pred, pres = i2, i1
-        condPred = randint(0,100) < propriedades[pres.especie]['taxaPred']
+    for pred_, pres_ in combos:
+        if ((esp1 == pred_) and (esp2 == pres_)): pred, pres = i1, i2
+        elif ((esp2 == pred_) and (esp1 == pres_)): pred, pres = i2, i1
+    if pred: condPred = randint(0,100) < propriedades[pres.especie]['taxaPred']
+    
     return condEspPred, condPred, pred, pres
+
+
+def checkRepr(i1:Individuo, i2:Individuo):
+    '''
+    Cehca as condições para interação de reprodução.
+
+    Args:
+        i1 (Individuo): representa um dos indivíduos a serem checados
+        i2 (Individuo): representa o outro indivíduo
+    '''
+    global propriedades
+    
+    esp1, esp2 = i1.especie, i2.especie
+    condEspRepr = (esp1 == esp2)
+    condRepr = randint(0,100) < propriedades[esp1]['taxaNat']
+    
+    return condEspRepr, condRepr
 
 
 def interacao(i1:Individuo, i2:Individuo):
@@ -166,13 +213,18 @@ def interacao(i1:Individuo, i2:Individuo):
     '''
     global propriedades
 
-    print(f'\n          Interação entre {i1.especie} e {i2.especie}!          ')
+    print(f'\n          Interação entre {i1.especie} e {i2.especie}!')
+    
+    # Checando tipo de interação:
     condEspInf, condSus, condInf, infect, sus = checkInf(i1, i2)
     condEspPred, condPred, pred, pres = checkPred(i1, i2)
+    condEspRepr, condRepr = checkRepr(i1, i2)
+
     # Defininindo tipo de interação:
     if (condEspInf and condSus and condInf): infeccao(infect, sus)
-    elif (condEspPred and condPred): predacao(pred, pres)
-    else: neutro(i1, i2)
+    if (condEspPred and condPred): predacao(pred, pres)
+    if (condEspRepr and condRepr): reproducao(i1, i2)
+    else: colElastica(i1, i2)
     
     
 def atualizaVizinhos(i:Individuo):
@@ -251,28 +303,46 @@ def criaCaixa():
                   vector(d,-d,0), vector(-d,-d,0)])
 
 
-def criaIndividuos(especie:str):
+def criaIndividuo(pos:vector, vel:vector, especie:str, saudavel:bool=True):
     '''
-    Cria instâncias da classe Individuo de uma determinada espécie na lista de
+    Cria instância da classe Individuo de uma determinada espécie na lista de
     indivíduos vivos.
+
+    Args:
+        pos (vector): posição inicial do indivíduo
+        vel (vector): velocidade inicial do indivíduo
+        especie (str): espécie do indivíduo a ser criado
+        saudavel (bool): condição de infecção para o indivíduo;
+    Verdadeiro = saudável, Falso = infectado. Verdadeiro por padrão
+    '''
+    global propriedades
+    
+    raio, massa, cor = propriedades[especie]['raio'], \
+    propriedades[especie]['massa'], propriedades[especie]['cor']
+    p = Individuo(pos, vel, raio, massa, especie, saudavel, cor)
+    if (not saudavel): propriedades[especie]['numInfectados'] += 1
+    indVivos.append(p)
+    propriedades[especie]['numIndividuos'] +=1
+
+
+def criaPopulacao(especie:str):
+    '''
+    Cria população de instâncias da classe Individuo de uma determinada espécie
+    na lista de indivíduos vivos.
 
     Args:
         especie (str): espécie da população a ser criada
     '''
     global propriedades, ladoCaixa, velLimite, indVivos
     
-    numIndividuos = propriedades[especie]['numIndividuos']
-    raio, massa, cor = propriedades[especie]['raio'], \
-    propriedades[especie]['massa'], propriedades[especie]['cor']
-    for _ in range(numIndividuos):
+    numIndividuosInicial = propriedades[especie]['numIndividuosInicial']
+    for _ in range(numIndividuosInicial):
         pos = [randrange(-ladoCaixa/2+1, ladoCaixa/2-1) for _ in range (2)]
         pos = vector(pos[0], pos[1], 0)
         vel = [randint(0, velLimite) for _ in range(2)]
         vel = vector(vel[0], vel[1], 0)
         saudavel = randint(1, 100) > propriedades[especie]['taxaInf']
-        if (not saudavel): propriedades[especie]['numInfectados'] += 1
-        p = Individuo(pos, vel, raio, massa, especie, saudavel, cor)
-        indVivos.append(p)
+        criaIndividuo(pos, vel, especie, saudavel)
         
         
 def criaGraficos():
@@ -282,7 +352,7 @@ def criaGraficos():
     global grafComp, grafAlt, listaConc, listaInf
     
     # Gráfico de concentração:
-    valMaximo = 65
+    valMaximo = 120
     grafico1 = graph(title='Concentração', width=grafComp,
                     height=grafAlt, align='left', ymax=valMaximo,
                     xtitle='Tempo', ytitle='Número de indivíduos')
@@ -290,24 +360,24 @@ def criaGraficos():
                     color=vector(.5,.5,.5), label='Ratos')
     concCoelho = gcurve(data=list(zip(listaConc[0], listaConc[2])),
                     color=vector(0,0,0), label='Coelhos')
-    concGato = gcurve(data=list(zip(listaConc[0], listaConc[3])),
-                    color=vector(1,.5,0), label='Gatos')
+    concRaposa = gcurve(data=list(zip(listaConc[0], listaConc[3])),
+                    color=vector(1,.5,0), label='Raposas')
     concGaucho = gcurve(data=list(zip(listaConc[0], listaConc[4])),
                     color=vector(1,1,0), label='Gaucho')
-    graficosConc.extend([concRato, concCoelho, concGato, concGaucho])
+    graficosConc.extend([concRato, concCoelho, concRaposa, concGaucho])
     
     # Gráfico de infecção:
-    valMaximo = 65
+    valMaximo = 120
     grafico2 = graph(title='Infecção', width=grafComp,
                     height=grafAlt, align='left', ymax=valMaximo,
                     xtitle='Tempo', ytitle='Número de indivíduos infectados')
     infRato = gcurve(data=list(zip(listaConc[0], listaConc[1])),
                     color=vector(.5,.5,.5), label='Ratos')
-    infGato = gcurve(data=list(zip(listaConc[0], listaConc[2])),
-                    color=vector(1,.5,0), label='Gatos')
+    infRaposa = gcurve(data=list(zip(listaConc[0], listaConc[2])),
+                    color=vector(1,.5,0), label='Raposas')
     infGaucho = gcurve(data=list(zip(listaConc[0], listaConc[3])),
                     color=vector(1,1,0), label='Gaucho')
-    graficosInf.extend([infRato, infGato, infGaucho])
+    graficosInf.extend([infRato, infRaposa, infGaucho])
 
 
 def atualizaGraficos():
@@ -317,17 +387,17 @@ def atualizaGraficos():
     global graficosConc, listaConc
     
     # Gráfico de concentração:
-    concRato, concCoelho, concGato, concGaucho = graficosConc[0], \
+    concRato, concCoelho, concRaposa, concGaucho = graficosConc[0], \
     graficosConc[1], graficosConc[2], graficosConc[3]
     concRato.data = list(zip(listaConc[0], listaConc[1]))
     concCoelho.data = list(zip(listaConc[0], listaConc[2]))
-    concGato.data = list(zip(listaConc[0], listaConc[3]))
+    concRaposa.data = list(zip(listaConc[0], listaConc[3]))
     concGaucho.data = list(zip(listaConc[0], listaConc[4]))
     
     # Gráfico de infecção:
-    infRato, infGato, infGaucho = graficosInf[0], graficosInf[1], graficosInf[2]
+    infRato, infRaposa, infGaucho = graficosInf[0], graficosInf[1], graficosInf[2]
     infRato.data = list(zip(listaInf[0], listaInf[1]))
-    infGato.data = list(zip(listaInf[0], listaInf[2]))
+    infRaposa.data = list(zip(listaInf[0], listaInf[2]))
     infGaucho.data = list(zip(listaInf[0], listaInf[3]))
     
     
@@ -344,7 +414,7 @@ def atualizaListas(t:int):
     listaConc[0].append(t)
     listaConc[1].append(nRato)
     listaConc[2].append(nCoelho)
-    listaConc[3].append(nGato)
+    listaConc[3].append(nRaposa)
     listaConc[4].append(nGaucho)
     
     # Gráfico de infecção:
@@ -413,7 +483,7 @@ def step():
         * Check de colisão entre dois indivíduos;
         * Check de colisão indivíduo-parede
     '''
-    global indMortos, indVivos, nRato, nCoelho, nGato, nGaucho, nRInf, nGInf, nLInf
+    global indMortos, indVivos, nRato, nCoelho, nRaposa, nGaucho, nRInf, nGInf, nLInf
     
     # * Deleta todos os indivíduos mortos:
     [delIndividuo(i) for i in indMortos]
@@ -422,11 +492,11 @@ def step():
     # * Atualiza número de indivíduos de cada população:
     nRato = propriedades['Rato']['numIndividuos']
     nCoelho = propriedades['Coelho']['numIndividuos']
-    nGato = propriedades['Gato']['numIndividuos']
+    nRaposa = propriedades['Raposa']['numIndividuos']
     nGaucho = propriedades['Gaucho']['numIndividuos']
     # * Atualiza número de indivíduos infectados de cada população:
     nRInf = propriedades['Rato']['numInfectados']
-    nGInf = propriedades['Gato']['numInfectados']
+    nGInf = propriedades['Raposa']['numInfectados']
     nLInf = propriedades['Gaucho']['numInfectados']
     # * Atualiza gráficos:
     atualizaGraficos()
@@ -446,21 +516,21 @@ def simulacao():
     '''
     Função responsável pela simulação completa.
     '''
-    global rate, parar, listaConc, nRato, nCoelho, nGato, nGaucho
+    global rate, parar, listaConc, nRato, nCoelho, nRaposa, nGaucho
     
     rate = 300
     t = 0
     criaCaixa()
-    criaIndividuos('Rato')
-    criaIndividuos('Coelho')
-    criaIndividuos('Gato')
-    criaIndividuos('Gaucho')
+    criaPopulacao('Rato')
+    criaPopulacao('Coelho')
+    criaPopulacao('Raposa')
+    criaPopulacao('Gaucho')
     criaGraficos()
     while (not parar):
         step()
         t += 1
         atualizaListas(t)
-    print('\n\n---------- Fim da simulação! ----------\n')
+    print('\n\n--------- Fim da simulação!\n')
     stop_server()
 
 
@@ -481,9 +551,11 @@ propriedades = {
         'especie':'Rato',
         'cor':vector(.5,.5,.5),
         'corInf':vector(0,1,0),
+        'taxaNat':15,
         'taxaInf':15,
         'taxaPred':60,
-        'numIndividuos':50,
+        'numIndividuosInicial':100,
+        'numIndividuos':0,
         'numInfectados':0
     },
 
@@ -492,20 +564,25 @@ propriedades = {
         'massa':2,
         'especie':'Coelho',
         'cor':vector(1,1,1),
+        'taxaNat':20,
         'taxaInf':0,
-        'taxaPred':50,
-        'numIndividuos':60
+        'taxaPred':55,
+        'numIndividuosInicial':70,
+        'numIndividuos':0,
+        'numInfectados':0
     },
 
-    'Gato' : {
+    'Raposa' : {
         'raio':.25,
         'massa':3,
-        'especie':'Gato',
+        'especie':'Raposa',
         'cor':vector(1,.5,0),
         'corInf':vector(.2,1,.2),
+        'taxaNat':10,
         'taxaInf':10,
-        'taxaPred':40,
-        'numIndividuos':30,
+        'taxaPred':30,
+        'numIndividuosInicial':75,
+        'numIndividuos':0,
         'numInfectados':0
     },
 
@@ -515,9 +592,11 @@ propriedades = {
         'especie':'Gaucho',
         'cor':vector(1,1,0),
         'corInf':vector(.4,1,.4),
+        'taxaNat':1,
         'taxaInf':5,
         'taxaPred':0,
-        'numIndividuos':20,
+        'numIndividuosInicial':20,
+        'numIndividuos':0,
         'numInfectados':0
     }
 }
@@ -525,13 +604,13 @@ propriedades = {
 dt = 1e-3 # Variação no tempo em cada frame
 velLimite = 20 # Limite de velocidade inicial para as partículas
 
-nRato = propriedades['Rato']['numIndividuos'] # Número de ratos
-nCoelho = propriedades['Coelho']['numIndividuos'] # Número de coelhos
-nGato = propriedades['Gato']['numIndividuos'] # Número de gatos
-nGaucho = propriedades['Gaucho']['numIndividuos'] # Número de leões
+nRato = propriedades['Rato']['numIndividuosInicial'] # Número de ratos
+nCoelho = propriedades['Coelho']['numIndividuosInicial'] # Número de coelhos
+nRaposa = propriedades['Raposa']['numIndividuosInicial'] # Número de gatos
+nGaucho = propriedades['Gaucho']['numIndividuosInicial'] # Número de leões
 
 nRInf = propriedades['Rato']['numInfectados'] # Número de ratos infectados
-nGInf = propriedades['Gato']['numInfectados'] # Número de gatos infectados
+nGInf = propriedades['Raposa']['numInfectados'] # Número de gatos infectados
 nLInf = propriedades['Gaucho']['numInfectados'] # Número de leões infectados
 
 indVivos = [] # Lista de indivíduos vivos
@@ -544,9 +623,9 @@ graficosConc = []
 listaTempo = [0]
 listaRato = [nRato]
 listaCoelho = [nCoelho]
-listaGato = [nGato]
+listaRaposa = [nRaposa]
 listaGaucho = [nGaucho]
-listaConc = [listaTempo, listaRato, listaCoelho, listaGato, listaGaucho]
+listaConc = [listaTempo, listaRato, listaCoelho, listaRaposa, listaGaucho]
 
 # Gráfico de infecção:
 graficosInf = []
@@ -588,4 +667,4 @@ simulacao()
 # --------------------------------- A Fazer: --------------------------------- #
 # Implementar morte por infecção --> Proporcional ao tempo função crescente sigmoide
 # Parâmetros!
-# Implementar natalidade e mortalidade!!!!! Por interação
+# Implementar mortalidade!!!!! Por interação
